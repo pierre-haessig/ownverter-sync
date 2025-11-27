@@ -150,7 +150,7 @@ class RecordedDatas(DeviceMonitorFilterBase):
 
         with open(filename, "r") as f:
             file = f.readlines()
-        line1 = file.pop(0)
+        line1 = file.pop(0).strip()
         if "#" in file[0] or file[0].startswith(" "):
             line2 = file.pop(0)
             idx = int(line2.replace("#", "").strip())
@@ -158,10 +158,13 @@ class RecordedDatas(DeviceMonitorFilterBase):
             idx = None
         datas = np.fromiter(file, dtype=float)
         names = line1.replace("#", "").split(",")
-        datas = datas.reshape(-1, len(names) - 1)
+        datas = datas.reshape(-1, len(names))
         if idx:
             datas = np.roll(datas, -(idx + 1), axis=0)
-        df = pd.DataFrame(datas, columns=names[:-1])
+        df = pd.DataFrame(datas, columns=names)
+        if 'time' in df.columns:
+            print('time set as index')
+            df.set_index('time')
         return df
 
 
@@ -173,21 +176,32 @@ class RecordedDatas(DeviceMonitorFilterBase):
         by convention we begin column name with 'V' when it is voltage
         we begin column name with 'I' when it is current
         """
-        fig, axs = plt.subplots(3, 1)
+        fig, axs = plt.subplots(2, 1) # warning: squeeze=True!
         tics = np.arange(len(df))
-        try:
-            df["V_Low_estim"] = df["duty_cycle"] * df["V_high"]
-        except:
-            pass
-        if "k_acquire" in df:
-            del df["k_acquire"]
+        if 'time' in df.columns:
+            print('time used in plot')
+            tics = df.time*1000 # s to ms
+        # try:
+        #     df["V_Low_estim"] = df["duty_cycle"] * df["V_high"]
+        # except:
+        #     pass
+        # if "k_acquire" in df:
+        #     del df["k_acquire"]
+
+        # for s in df:
+        #     if s.startswith("V"):
+        #         axs[0].step(tics, df[s], label=s)
+        #     elif s.startswith("I"):
+        #         axs[1].step(tics, df[s], label=s)
+        #     else:
+        #         axs[2].step(tics, df[s], label=s)
         for s in df:
-            if s.startswith("V"):
-                axs[0].step(tics, df[s], label=s)
-            elif s.startswith("I"):
-                axs[1].step(tics, df[s], label=s)
+            print(f'plotting {s}...')
+            if s == 'time':
+                continue
             else:
-                axs[2].step(tics, df[s], label=s)
+                axs[0].plot(tics, df[s], '-+', label=s)
+
         for ax in axs:
             ax.legend()
             ax.grid()
