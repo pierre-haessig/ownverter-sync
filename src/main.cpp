@@ -126,16 +126,16 @@ static bool over_current_flag; // memory flag for overcurrent
 static bool V_dc_low_flag; // memory flag for low V_high event
 
 /* --- Grid synchronization (PLL) variables --- */
-static bool pll_on = true; // ENABLE/DISABLE grid frequency tracking. If false, w=w0
+static bool pll_on = false; // ENABLE/DISABLE grid frequency tracking. If false, w=w0
 
 // PLL state (frequency & phase)
 const  float32_t GRID_FREQ0 = 50.0; // nominal grid frequency (Hz)
-const  float32_t GRID_W0 = 2*PI*GRID_FREQ0; // nominal grid frequency (Hz)
+const  float32_t GRID_W0 = 2*PI*GRID_FREQ0; // nominal grid frequency (rad/s)
 
 static float32_t grid_freq = GRID_FREQ0; // grid frequency (Hz)
 static float32_t grid_w = GRID_W0; // grid frequency (rad/s)
 static float32_t grid_angle = 0.0; // grid angle (rad)
-const float32_t PLL_DELTAW_BOUND = 0.2 * 2*PI*GRID_FREQ0; // +/- bound on PLL frequency deviation: 0.2 F0 = 10 Hz
+const float32_t PLL_DELTAW_BOUND = 0.2 * GRID_W0; // +/- bound on PLL frequency deviation (rad/s) (0.2 F0 = 10 Hz)
 
 // PLL monitoring
 static bool pll_synced; // PLL sync status
@@ -240,7 +240,7 @@ void print_scope_record() {
 void setup_PLL() {
 	/*State variables*/
 	grid_angle = 0.0;
-	pll_on = true;
+	pll_on = false;
 	pll_synced = false;
 	pll_unsync_flag = false;
 	pll_sync_counter = 0;
@@ -431,11 +431,13 @@ void status_display_task()
 	// PLL display:
 	printk("PLL %s (%s %.1f Hz) | ", pll_on ? "ON ":"OFF", pll_synced ? "SYNCED":"UNSYNC", (double) grid_freq);
 	// Display various measurements
+	printk("Vref %4.1f V, ", (double) Vi_ref);
 	printk("Vgd %4.1f V, ", (double) Vg_dq.d);
 	printk("Idq %5.1f,%5.1f A, ", (double)Idq.d, (double)Idq.d);
-	printk("Vdc %5.2f V | ", (double) V_dc);
+	printk("Vdc %4.1f V, ", (double) V_dc);
+	printk("Idc %4.1f A | ", (double) I_dc);
 	// Scope
-	printk("Scope acq %s | ", scope.acq_state() == ACQ_DONE ? "DONE" : "....");
+	printk("Scope %s | ", scope.acq_state() == ACQ_DONE ? "DONE" : "....");
 	// Error flags display:
 	if (over_current_flag || V_dc_low_flag || pll_unsync_flag) {
 		printk("Err: ");
@@ -560,7 +562,8 @@ inline bool monitor_power() {
 	if (V_dc_low) {V_dc_low_flag = true;}
 
 	// return power_ok signal, including PLL status
-	return  !V_dc_low && pll_synced && !over_current;
+	//return  !V_dc_low && pll_synced && !over_current;
+	return  !V_dc_low && !over_current; // PLL sync requirement removed from power_ok
 }
 
 /* Clear power and PLL error flags */
